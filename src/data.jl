@@ -40,24 +40,20 @@ function generate_process_string(m::KeplerGLMap, d::CSVData)
         csvstring = `$(d.csvstring)`
         processeddata = [keplerGl.processCsvData(csvstring)]
 
-        // for debugging
-        //console.log(processeddata)
+        // Create dataset in the format addDataToMap expects
+        // NOTE: Use 'rows', not 'allData' for addDataToMap!
+        const datasetToAdd = {
+            info: {
+                id: '$(d.id)',
+                label: '$(d.id)'
+            },
+            data: {
+                fields: processeddata[0].fields,
+                rows: processeddata[0].rows
+            }
+        };
 
-        // match id with old datasets
-        newDataset = processeddata.map((d, i) => ({
-        version: '$(m.config[:version])',
-        data: {
-            id: '$(d.id)',
-            label: '$(d.id)',
-            allData: d.rows,
-            fields: d.fields
-        }
-        }));
-
-        newDatasets.push(newDataset[0]);
-
-        // for debugging
-        //console.log(newDataset)
+        newDatasets.push(datasetToAdd);
     """
 end
 

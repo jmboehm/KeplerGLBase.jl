@@ -9,7 +9,7 @@
 
 # end
 
-# this returns a minimal config for a static map
+# this returns a minimal config for a static map compatible with Kepler.gl 3.2.0
 function make_static_config()
     t = """
         {
@@ -20,6 +20,7 @@ function make_static_config()
                     ],
                     "layers": [
                     ],
+                    "effects": [],
                     "interactionConfig": {
                         "tooltip": {
                             "fieldsToShow": {
@@ -40,10 +41,15 @@ function make_static_config()
                         }
                     },
                     "layerBlending": "normal",
+                    "overlayBlending": "normal",
                     "splitMaps": [],
                     "animationConfig": {
                         "currentTime": null,
                         "speed": 1
+                    },
+                    "editor": {
+                        "features": [],
+                        "visible": true
                     }
                 },
                 "mapState": {
@@ -53,25 +59,37 @@ function make_static_config()
                     "longitude": -122.80009283836715,
                     "pitch": 0,
                     "zoom": 8.0,
-                    "isSplit": false
+                    "isSplit": false,
+                    "isViewportSynced": true,
+                    "isZoomLocked": false,
+                    "splitMapViewports": []
                 },
                 "mapStyle": {
-                    "styleType": "light",
+                    "styleType": "voyager",
                     "topLayerGroups": {},
                     "visibleLayerGroups": {
+                        "label": true,
+                        "road": true,
                         "border": false,
                         "building": true,
-                        "label": true,
+                        "water": true,
                         "land": true,
-                        "road": true,
-                        "water": true
+                        "3d building": false
                     },
                     "threeDBuildingColor": [
-                        9.665468314072013,
-                        17.18305478057247,
-                        31.1442867897876
+                        233.71862868880427,
+                        230.92517894351974,
+                        226.26942936804556
                     ],
+                    "backgroundColor": [0, 0, 0],
                     "mapStyles": {}
+                },
+                "uiState": {
+                    "mapControls": {
+                        "mapLegend": {
+                            "active": false
+                        }
+                    }
                 }
             }
         }

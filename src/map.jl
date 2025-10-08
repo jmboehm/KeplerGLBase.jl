@@ -21,7 +21,8 @@ mutable struct KeplerGLMap
 end
 
 """
-    KeplerGLMap(token::String;
+    KeplerGLMap(;
+        token::Union{String, Nothing} = nothing,
         width::Int64 = 1200,
         height::Int64 = 900,
         center_map = true,
@@ -30,17 +31,16 @@ end
 
 Creates a new `KeplerGLMap`.
 
-# Required Arguments
-- `token::String`: the mapbox token to be used for displaying the map.
-
 # Optional Arguments
+- `token::Union{String, Nothing} = nothing`: Mapbox token for Mapbox basemaps. Optional since Kepler.gl 3.0+ uses MapLibre as the default basemap which doesn't require a token.
 - `width:Int64 = 1200`: width of the map window
 - `height:Int64 = 900`: height of the map window
-- `center_map - true`: whether the map should automatically be centered
+- `center_map = true`: whether the map should automatically be centered
 - `read_only = false`: whether the map should be read-only (not editable)
 - `config = KeplerGLBase.make_static_config()`: initial configuration
 """
-function KeplerGLMap(token::String;
+function KeplerGLMap(;
+    token::Union{String, Nothing} = nothing,
     width::Int64 = 1200,
     height::Int64 = 900,
     center_map = true,
@@ -53,7 +53,7 @@ function KeplerGLMap(token::String;
         :title => "keplergl_$(randstring(6))",
         :source => "KeplerGLBase.jl")
 
-    window = Dict(:token => token,
+    window = Dict(:token => something(token, ""),
         :width => width,
         :height => height,
         :read_only => read_only,
@@ -124,16 +124,18 @@ function load_map_from_json!(m::KeplerGLMap, json_map_file::String)
 end
 
 """
-    load_map_from_json(token::String, json_map_file::String)
+    load_map_from_json(json_map_file::String; token::Union{String, Nothing} = nothing)
 
 Returns a `KeplerGLMap` whose data and config has been loaded from `json_map_file`.
 
 # Required Arguments
-- `token::String`: mapbox token to use with the map.
 - `json_map_file::String`: the path to the Kepler.gl map JSON file which should be loaded.
+
+# Optional Arguments
+- `token::Union{String, Nothing} = nothing`: Mapbox token. Optional since Kepler.gl 3.0+ uses MapLibre by default.
 """
-function load_map_from_json(token::String, json_map_file::String)
-    m = KeplerGLMap(token)
+function load_map_from_json(json_map_file::String; token::Union{String, Nothing} = nothing)
+    m = KeplerGLMap(token=token)
     load_map_from_json!(m, json_map_file)
     return m
 end
@@ -206,17 +208,31 @@ function make_dispatch_code(m::KeplerGLMap)
     loadcode = """
 
         const configstring = `$(JSON3.write(m.config))`
-
         const config = JSON.parse(configstring);
 
-        const loadedData = keplerGl.KeplerGlSchema.load(
-            newDatasets,
-            config
-        );
+        // Update config layer dataIds to match actual dataset IDs
+        const updatedConfig = {...config.config};
+        if (updatedConfig.visState && updatedConfig.visState.layers) {
+            updatedConfig.visState.layers = updatedConfig.visState.layers.map((layer, idx) => ({
+                ...layer,
+                config: {
+                    ...layer.config,
+                    dataId: newDatasets[idx].info.id
+                }
+            }));
+        }
 
-        loadedData['options'] = {centerMap: $(m.window[:center_map]), readOnly: $(m.window[:read_only])};
+        // Add data and config to map in a SINGLE call
+        const dataToAdd = {
+            datasets: newDatasets.length === 1 ? newDatasets[0] : newDatasets,
+            options: {
+                centerMap: $(m.window[:center_map]),
+                readOnly: $(m.window[:read_only])
+            },
+            config: updatedConfig
+        };
 
-        store.dispatch(keplerGl.addDataToMap(loadedData));
+        store.dispatch(keplerGl.addDataToMap(dataToAdd));
     """
 
     return string(start, "\n", dispatchcode, "\n", loadcode)
@@ -259,11 +275,9 @@ function make_html(m::KeplerGLMap, dispatch_code::String)
 
         <!-- Load our React component. -->
         <script>
-            /* Validate Mapbox Token */
-            MAPBOX_TOKEN = '$(m.window[:token])';
-            if ((MAPBOX_TOKEN || '') === '' || MAPBOX_TOKEN === 'PROVIDE_MAPBOX_TOKEN') {
-            alert(WARNING_MESSAGE);
-            }
+            /* Mapbox Token - Optional for MapLibre (default in Kepler.gl 3.0+) */
+            MAPBOX_TOKEN = $(m.window[:token] == "" ? "undefined" : "'$(m.window[:token])'");
+            // Note: undefined token uses MapLibre basemap (default in Kepler.gl 3.0+)
 
             /** STORE **/
 
@@ -327,13 +341,23 @@ function make_html(m::KeplerGLMap, dispatch_code::String)
 
             /** Render **/
             (function render(react, reactDOM, app) {
-                reactDOM.render(app, document.getElementById('app'));
+                // React 18 API: Use createRoot instead of render
+                const root = reactDOM.createRoot(document.getElementById('app'));
+                root.render(app);
             }(React, ReactDOM, app));
 
-            (function customize(keplerGl, store) {
+            /** Add data after render **/
+            (function waitForKeplerGl(keplerGl, store) {
+                // Wait for Kepler.gl Redux store to be initialized before dispatching data
+                const checkInterval = setInterval(() => {
+                    const state = store.getState();
+                    if (state && state.keplerGl && state.keplerGl.app) {
+                        clearInterval(checkInterval);
 
-                $(dispatch_code)
-            
+                        $(dispatch_code)
+
+                    }
+                }, 50);
             }(KeplerGl, store))
         </script>
     """
